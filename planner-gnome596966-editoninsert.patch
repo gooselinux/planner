@@ -1,0 +1,21 @@
+diff -ru planner-0.14.4.orig/src/planner-task-tree.c planner-0.14.4/src/planner-task-tree.c
+--- planner-0.14.4.orig/src/planner-task-tree.c	2009-09-30 16:27:53.000000000 +0100
++++ planner-0.14.4/src/planner-task-tree.c	2009-09-30 16:28:25.000000000 +0100
+@@ -2700,7 +2700,7 @@
+ 	gtk_tree_view_set_cursor (tree_view,
+ 				  path,
+ 				  gtk_tree_view_get_column (tree_view, 0),
+-				  FALSE);
++				  TRUE);
+ 	
+ 	planner_task_tree_set_anchor (tree, path);
+ 	
+@@ -2788,7 +2788,7 @@
+ 	gtk_tree_view_set_cursor (tree_view,
+ 				  path,
+ 				  gtk_tree_view_get_column (tree_view, 0),
+-				  FALSE);
++				  TRUE);
+ 
+ 	planner_task_tree_set_anchor (tree, path);
+ 

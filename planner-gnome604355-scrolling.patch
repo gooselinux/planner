@@ -1,0 +1,72 @@
+diff -ru planner-0.14.4.orig/src/planner-gantt-view.c planner-0.14.4/src/planner-gantt-view.c
+--- planner-0.14.4.orig/src/planner-gantt-view.c	2008-08-02 21:00:12.000000000 +0100
++++ planner-0.14.4/src/planner-gantt-view.c	2009-12-11 10:21:01.000000000 +0000
+@@ -201,19 +201,23 @@
+ static gboolean
+ gantt_view_chart_scroll_event (GtkWidget * gki, GdkEventScroll * event, PlannerGanttView *view)
+ {
++	gboolean dontpropogate = FALSE;
++
+ 	gboolean can_in, can_out;
+ 	PlannerGanttViewPriv *priv;
+-	
++
+ 	if (event->state & GDK_CONTROL_MASK) {
+ 		priv = view->priv;
+ 		planner_gantt_chart_can_zoom (PLANNER_GANTT_CHART (priv->gantt), &can_in, &can_out);
+ 		switch (event->direction) {
+       			case GDK_SCROLL_UP: {
++      				dontpropogate = TRUE;
+ 				if (can_in)
+ 					gantt_view_zoom_in_cb  (NULL, view);
+ 	        		break;
+ 			}
+ 			case GDK_SCROLL_DOWN:
++      				dontpropogate = TRUE;
+ 				if (can_out)
+ 					gantt_view_zoom_out_cb  (NULL, view);
+ 			        break;
+@@ -222,7 +226,7 @@
+ 		}
+     	}
+ 
+-	return TRUE;
++	return dontpropogate;
+ }
+ 
+ static void
+diff -ru planner-0.14.4.orig/src/planner-usage-view.c planner-0.14.4/src/planner-usage-view.c
+--- planner-0.14.4.orig/src/planner-usage-view.c	2008-08-02 20:56:19.000000000 +0100
++++ planner-0.14.4/src/planner-usage-view.c	2009-12-11 10:22:01.000000000 +0000
+@@ -122,6 +122,8 @@
+ static gboolean
+ usage_view_chart_scroll_event (GtkWidget * gki, GdkEventScroll * event, PlannerView *view)
+ {
++	gboolean dontpropogate = FALSE;
++
+ 	gboolean can_in, can_out;
+ 	PlannerUsageViewPriv *priv;
+ 	
+@@ -130,11 +132,13 @@
+ 		planner_usage_chart_can_zoom (priv->chart, &can_in, &can_out);
+ 		switch (event->direction) {
+       			case GDK_SCROLL_UP: {
++				dontpropogate = TRUE;
+ 				if (can_in)
+ 					usage_view_zoom_in_cb  (NULL, view);
+ 	        		break;
+ 			}
+ 			case GDK_SCROLL_DOWN:
++				dontpropogate = TRUE;
+ 				if (can_out)
+ 					usage_view_zoom_out_cb  (NULL, view);
+ 			        break;
+@@ -143,7 +147,7 @@
+ 		}
+     	}
+ 
+-	return TRUE;
++	return dontpropogate;
+ }
+ 
+ 

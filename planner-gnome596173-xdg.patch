@@ -1,0 +1,170 @@
+diff -ru planner-0.14.4.orig/src/planner-msp-plugin.c planner-0.14.4/src/planner-msp-plugin.c
+--- planner-0.14.4.orig/src/planner-msp-plugin.c	2009-09-24 11:12:52.000000000 +0100
++++ planner-0.14.4/src/planner-msp-plugin.c	2009-09-24 11:19:20.000000000 +0100
+@@ -178,7 +178,7 @@
+ 	
+ 	dir = planner_conf_get_string (CONF_MSP_PLUGIN_LAST_DIR, NULL);
+ 	if (dir == NULL) {
+-		dir = g_strdup (g_get_home_dir ());
++		dir = g_strdup (g_get_user_special_dir (G_USER_DIRECTORY_DOCUMENTS));
+ 	}
+ 	
+ 	return dir;
+diff -ru planner-0.14.4.orig/src/planner-print-dialog.c planner-0.14.4/src/planner-print-dialog.c
+--- planner-0.14.4.orig/src/planner-print-dialog.c	2009-09-24 11:12:52.000000000 +0100
++++ planner-0.14.4/src/planner-print-dialog.c	2009-09-24 11:13:10.000000000 +0100
+@@ -43,7 +43,7 @@
+ {
+ 	char *dir;
+ 	
+-	dir = g_build_filename (g_get_home_dir (), ".gnome2", NULL);
++	dir = g_build_filename (g_get_user_config_dir (), NULL);
+ 	
+ 	if (!g_file_test (dir, G_FILE_TEST_EXISTS | G_FILE_TEST_IS_DIR)) {
+ 		if (g_mkdir (dir, 0755) != 0) {
+@@ -54,7 +54,7 @@
+ 	
+ 	g_free (dir);
+ 	
+-	dir = g_build_filename (g_get_home_dir (), ".gnome2", "planner", NULL);
++	dir = g_build_filename (g_get_user_config_dir (), "planner", NULL);
+ 	
+ 	if (!g_file_test (dir, G_FILE_TEST_EXISTS | G_FILE_TEST_IS_DIR)) {
+ 		if (g_mkdir (dir, 0755) != 0) {
+@@ -75,6 +75,19 @@
+ 		return NULL;
+ 	}
+ 	
++	return g_build_filename (g_get_user_config_dir (),
++				 "planner",
++				 PLANNER_PRINT_CONFIG_FILE,
++				 NULL);
++}
++
++static gchar *
++get_old_config_filename (void)
++{
++	if (!ensure_dir ()) {
++		return NULL;
++	}
++	
+ 	return g_build_filename (g_get_home_dir (),
+ 				 ".gnome2", "planner",
+ 				 PLANNER_PRINT_CONFIG_FILE,
+@@ -171,8 +184,21 @@
+ 						     filename,
+ 						     G_KEY_FILE_KEEP_COMMENTS|G_KEY_FILE_KEEP_TRANSLATIONS,
+ 						     NULL);
++
+ 		g_free (filename);
+ 
++		/*try the older config dir if the new one didn't exist*/
++		if (!success) {
++			filename = get_old_config_filename ();
++			if(filename) {
++				success = g_key_file_load_from_file (key_file,
++						     filename,
++						     G_KEY_FILE_KEEP_COMMENTS|G_KEY_FILE_KEEP_TRANSLATIONS,
++						     NULL);
++				g_free (filename);
++			}
++		}
++
+ 		if (success) {
+ 			settings = gtk_print_settings_new_from_key_file (key_file, NULL, NULL);
+ 		}
+diff -ru planner-0.14.4.orig/src/planner-python-plugin.c planner-0.14.4/src/planner-python-plugin.c
+--- planner-0.14.4.orig/src/planner-python-plugin.c	2009-09-24 11:12:52.000000000 +0100
++++ planner-0.14.4/src/planner-python-plugin.c	2009-09-24 11:31:06.000000000 +0100
+@@ -127,27 +127,14 @@
+ 	}
+ }
+ 
+-G_MODULE_EXPORT void 
+-plugin_init (PlannerPlugin *plugin, PlannerWindow *main_window)
++static void
++plugin_execute_scripts(const gchar *dirname)
+ {
+-	PlannerPluginPriv *priv;
+ 	GDir              *dir;
+-	gchar             *dirname, *full_filename;
++	gchar             *full_filename;
+ 	const gchar       *filename;
+-	
+-	priv = g_new0 (PlannerPluginPriv, 1);
+-	plugin->priv = priv;
+-
+-	priv->main_window = main_window;
+-	priv->scripts = g_hash_table_new (g_str_hash, g_str_equal);
+-	
+-	Py_Initialize ();
+-	
+-	/* Look in ~/.gnome2/planner/python/  and run the scripts that we find */
+-	dirname = g_build_filename (g_get_home_dir(), ".gnome2", "planner", "python", NULL);
+ 	dir = g_dir_open (dirname, 0, NULL);
+ 	if (dir == NULL) {
+-		g_free (dirname);
+ 		return;
+ 	}
+ 
+@@ -162,11 +149,35 @@
+ 		filename = g_dir_read_name (dir);
+ 	}
+ 	
+-	g_free (dirname);
+ 	g_dir_close (dir);
+ }
+ 
+ G_MODULE_EXPORT void 
++plugin_init (PlannerPlugin *plugin, PlannerWindow *main_window)
++{
++	PlannerPluginPriv *priv;
++	gchar             *dirname;
++	
++	priv = g_new0 (PlannerPluginPriv, 1);
++	plugin->priv = priv;
++
++	priv->main_window = main_window;
++	priv->scripts = g_hash_table_new (g_str_hash, g_str_equal);
++	
++	Py_Initialize ();
++
++	/* Look in $XDG_DATA_HOME/planner/python/  and run the scripts that we find */
++	dirname = g_build_filename (g_get_user_data_dir(), "planner", "python", NULL);
++	plugin_execute_scripts(dirname);
++	g_free (dirname);
++
++	/* Look in legacy ~/.gnome2/planner/python/  and run the scripts that we find */
++	dirname = g_build_filename (g_get_home_dir(), ".gnome2", "planner", "python", NULL);
++	plugin_execute_scripts(dirname);
++	g_free (dirname);
++}
++
++G_MODULE_EXPORT void 
+ plugin_exit (PlannerPlugin *plugin) 
+ {
+ 	Py_Finalize ();
+diff -ru planner-0.14.4.orig/src/planner-window.c planner-0.14.4/src/planner-window.c
+--- planner-0.14.4.orig/src/planner-window.c	2009-09-24 11:12:52.000000000 +0100
++++ planner-0.14.4/src/planner-window.c	2009-09-24 11:18:11.000000000 +0100
+@@ -1066,7 +1066,7 @@
+ 	last_dir = planner_conf_get_string (CONF_LAST_DIR, NULL);
+ 	
+ 	if (last_dir == NULL) {
+-		last_dir = g_strdup (g_get_home_dir ());
++		last_dir = g_strdup (g_get_user_special_dir (G_USER_DIRECTORY_DOCUMENTS));
+ 	}
+ 	
+ 	return last_dir;
+diff -ru planner-0.14.4.orig/src/planner-xml-planner-plugin.c planner-0.14.4/src/planner-xml-planner-plugin.c
+--- planner-0.14.4.orig/src/planner-xml-planner-plugin.c	2009-09-24 11:12:52.000000000 +0100
++++ planner-0.14.4/src/planner-xml-planner-plugin.c	2009-09-24 11:19:05.000000000 +0100
+@@ -63,7 +63,7 @@
+ 	
+ 	last_dir = planner_conf_get_string (CONF_MAIN_LAST_XML_EXPORT_DIR, NULL);
+ 	if (last_dir == NULL) {
+-		last_dir = g_strdup (g_get_home_dir ());
++		last_dir = g_strdup (g_get_user_special_dir (G_USER_DIRECTORY_DOCUMENTS));
+ 	}
+ 	
+ 	return last_dir;

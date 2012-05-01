@@ -1,0 +1,398 @@
+From 6879eaf26aad6006987d0a494f084ce5b55141bf Mon Sep 17 00:00:00 2001
+From: Alexandre Franke <alexandre.franke@gmail.com>
+Date: Wed, 5 Aug 2009 18:24:02 +0200
+Subject: [PATCH] Kill libegg and replace it by GtkRecentManager
+
+---
+ Makefile.am                                     |    1 -
+ configure.in                                    |    2 -
+ data/ui/main-window.ui                          |    3 +-
+ po/POTFILES.in                                  |    1 -
+ src/Makefile.am                                 |    1 -
+ src/planner-application.c                       |   18 +-
+ src/planner-application.h                       |    4 +-
+ src/planner-window.c                            |  122 +-
+ tests/Makefile.am                               |    1 -
+ 32 files changed, 82 insertions(+), 6612 deletions(-)
+
+diff --git a/Makefile.am b/Makefile.am
+index 6c7a5ca..128551f 100644
+--- a/Makefile.am
++++ b/Makefile.am
+@@ -14,7 +14,6 @@ endif
+ SUBDIRS = \
+ 	po 				\
+ 	libplanner			\
+-	libegg				\
+ 	src				\
+ 	data				\
+ 	docs				\
+diff --git a/configure.in b/configure.in
+index e2912fa..c2ff063 100644
+--- a/configure.in
++++ b/configure.in
+@@ -312,8 +312,6 @@ AC_SUBST(ACLOCAL_AMFLAGS)
+ AC_CONFIG_FILES([
+ Makefile
+ libplanner/Makefile
+-libegg/Makefile
+-libegg/recent-files/Makefile
+ src/Makefile
+ docs/Makefile
+ docs/libplanner/Makefile
+diff --git a/data/ui/main-window.ui b/data/ui/main-window.ui
+index fdf3e7d..a0ddc5c 100644
+--- a/data/ui/main-window.ui
++++ b/data/ui/main-window.ui
+@@ -3,6 +3,7 @@
+     <menu            action="File">
+       <menuitem      action="FileNew"/>
+       <menuitem      action="FileOpen"/>
++      <menuitem      action="FileOpenRecent"/>
+       <menu          action="Import">
+         <placeholder name="Import placeholder"/>
+       </menu>
+@@ -17,8 +18,6 @@
+       <menuitem      action="FilePrint"/>
+       <menuitem      action="FilePrintPreview"/>
+       <separator/>
+-      <placeholder   name="OpenRecent"/>
+-      <separator/>
+       <menuitem      action="FileClose"/>
+       <menuitem      action="FileExit"/>
+     </menu>
+diff --git a/po/POTFILES.in b/po/POTFILES.in
+index 8eb6503..521e428 100644
+--- a/po/POTFILES.in
++++ b/po/POTFILES.in
+@@ -22,7 +22,6 @@ data/mime/planner.xml.in
+ data/planner.desktop.in.in
+ data/planner.schemas.in
+ data/stylesheets/localizable.xml
+-libegg/recent-files/egg-recent-vfs-utils.c
+ 
+ libplanner/mrp-assignment.c
+ libplanner/mrp-calendar.c
+diff --git a/src/Makefile.am b/src/Makefile.am
+index c6b0484..f53c42c 100644
+--- a/src/Makefile.am
++++ b/src/Makefile.am
+@@ -21,7 +21,6 @@ planner_LDFLAGS = -export-dynamic
+ planner_LDADD = \
+ 	libplannerapp.la \
+ 	$(top_builddir)/libplanner/libplanner-1.la \
+-	$(top_builddir)/libegg/recent-files/libeggrecent.la \
+ 	$(PLANNER_LIBS)
+ 
+ 
+diff --git a/src/planner-application.c b/src/planner-application.c
+index 71741a4..9e21f48 100644
+--- a/src/planner-application.c
++++ b/src/planner-application.c
+@@ -22,8 +22,7 @@
+  */
+ 
+ #include <config.h>
+-#include <gtk/gtkmain.h>
+-#include <gtk/gtkstock.h>
++#include <gtk/gtk.h>
+ #include <glib/gi18n.h>
+ #include "planner-window.h"
+ #include "planner-application.h"
+@@ -36,7 +35,7 @@
+ 	GList *windows;
+ 
+ 	/* recent file stuff */
+-	EggRecentModel *recent_model;
++	GtkRecentManager *recent_model;
+ };
+ 
+ 
+@@ -181,14 +180,7 @@
+ 
+ 	priv->windows = NULL;
+ 	
+-	priv->recent_model = egg_recent_model_new (EGG_RECENT_MODEL_SORT_MRU);
+-	egg_recent_model_set_filter_mime_types (priv->recent_model,
+-						"application/x-planner",
+-						"application/x-mrproject",
+-						NULL);
+-	egg_recent_model_set_filter_uri_schemes (priv->recent_model, "file", NULL);
+-
+-	g_object_set (priv->recent_model, "limit", 5, NULL);
++	priv->recent_model = gtk_recent_manager_get_default ();
+ 
+ 	app->priv = priv;
+ }
+@@ -198,8 +190,6 @@
+ {
+ 	PlannerApplication *app = PLANNER_APPLICATION (object);
+ 
+-	g_object_unref (app->priv->recent_model);
+-	
+ 	g_free (app->priv);
+ 
+ 	if (G_OBJECT_CLASS (parent_class)->finalize) {
+@@ -282,7 +272,7 @@
+ 	g_list_free (list_cpy);
+ }
+ 
+-EggRecentModel *
++GtkRecentManager *
+ planner_application_get_recent_model (PlannerApplication *app)
+ {
+ 	g_return_val_if_fail (PLANNER_IS_APPLICATION (app), NULL);
+diff --git a/src/planner-application.h b/src/planner-application.h
+index 5ba2e53..5220baa 100644
+--- a/src/planner-application.h
++++ b/src/planner-application.h
+@@ -26,7 +26,7 @@
+ 
+ #include <libplanner/mrp-application.h>
+ #include <libplanner/mrp-project.h>
+-#include <libegg/recent-files/egg-recent-model.h>
++#include <gtk/gtk.h>
+ 
+ #define PLANNER_TYPE_APPLICATION                (planner_application_get_type ())
+ #define PLANNER_APPLICATION(obj)                (G_TYPE_CHECK_INSTANCE_CAST ((obj), PLANNER_TYPE_APPLICATION, PlannerApplication))
+@@ -54,6 +54,6 @@ GType                 planner_application_get_type         (void) G_GNUC_CONST;
+ PlannerApplication   *planner_application_new              (void);
+ GtkWidget       *     planner_application_new_window       (PlannerApplication *app);
+ void                  planner_application_exit             (PlannerApplication *app);
+-EggRecentModel  *     planner_application_get_recent_model (PlannerApplication *app);
++GtkRecentManager     *planner_application_get_recent_model (PlannerApplication *app);
+ 
+ #endif /* __PLANNER_APPLICATION_H__ */
+diff --git a/src/planner-window.c b/src/planner-window.c
+index 21c1863..b120d13 100644
+--- a/src/planner-window.c
++++ b/src/planner-window.c
+@@ -24,7 +24,6 @@
+ #include <config.h>
+ #include <string.h>
+ #include <math.h>
+-#include <locale.h>
+ #include <glib/gi18n.h>
+ #include <gdk-pixbuf/gdk-pixbuf.h>
+ #include <gtk/gtk.h>
+@@ -32,9 +31,6 @@
+ #include <libplanner/mrp-error.h>
+ #include <libplanner/mrp-project.h>
+ #include <libplanner/mrp-paths.h>
+-#include <libegg/recent-files/egg-recent-view.h>
+-#include <libegg/recent-files/egg-recent-view-uimanager.h>
+-#include <libegg/recent-files/egg-recent-util.h>
+ #include "planner-marshal.h"
+ #include "planner-conf.h"
+ #include "planner-sidebar.h"
+@@ -80,7 +76,7 @@
+ 	GList               *plugins;
+ 	GTimer              *last_saved;
+ 
+-	EggRecentViewUIManager *recent_view;
++	GtkWidget           *recent_view;
+ };
+ 
+ /* Drop targets. */
+@@ -183,8 +179,8 @@
+ static void       window_update_title                    (PlannerWindow                *window);
+ static GtkWidget *window_create_dialog_button            (const gchar                  *icon_name,
+ 							  const gchar                  *text);
+-static gchar *    window_recent_tooltip_func             (EggRecentItem                *item,
+-							  gpointer                      user_data);
++static void       window_recent_add_item                 (PlannerWindow                *window,
++							  const gchar                  *uri);
+ static void       window_save_state                      (PlannerWindow *window);
+ static void       window_restore_state                   (PlannerWindow *window);
+ 
+@@ -233,6 +229,9 @@
+ 	{ "FileOpen",
+ 	  GTK_STOCK_OPEN,          N_("_Open..."),                 "F3",                N_("Open a project"),
+ 	  G_CALLBACK (window_open_cb) },
++	{ "FileOpenRecent",
++	  NULL,                    N_("Open _Recent"),             NULL,                NULL,
++	  NULL },
+ 	{ "Import",
+ 	  NULL,                    N_("_Import"),                  NULL,                NULL,
+ 	  NULL },
+@@ -426,16 +425,22 @@
+ }
+ 
+ static void
+-planner_window_open_recent_cb (GtkAction     *action,
+-			       PlannerWindow *window)
++recent_chooser_item_activated (GtkRecentChooser *chooser, gpointer user_data)
+ {
+-	const EggRecentItem *item;
+-	const gchar         *uri;
++	gchar *uri;
++	PlannerWindow *window;
++	PlannerWindowPriv *priv;
+ 
+-	item = egg_recent_view_uimanager_get_item (window->priv->recent_view, action);
+-	uri = egg_recent_item_peek_uri (item);
++	g_return_if_fail (PLANNER_IS_WINDOW (user_data));
+ 
+-	planner_window_open_in_existing_or_new (window, uri, FALSE);
++	window = PLANNER_WINDOW (user_data);
++	priv = window->priv;
++
++	uri = gtk_recent_chooser_get_current_uri (chooser);
++	if (uri != NULL) {
++                planner_window_open_in_existing_or_new (window, uri, FALSE);
++                g_free (uri);
++        }
+ }
+ 
+ static void
+@@ -606,16 +611,29 @@
+ 		      NULL);
+ 
+ 	/* Handle recent file stuff. */
+-	priv->recent_view = egg_recent_view_uimanager_new (priv->ui_manager,
+-							   "/MenuBar/File/OpenRecent",
+-							   G_CALLBACK (planner_window_open_recent_cb),
+-							   window);
+-
+-	egg_recent_view_set_model (EGG_RECENT_VIEW (priv->recent_view),
+-				   planner_application_get_recent_model (priv->application));
+-	egg_recent_view_uimanager_set_tooltip_func (priv->recent_view,
+-						    window_recent_tooltip_func,
+-						    NULL);
++	priv->recent_view = gtk_recent_chooser_menu_new_for_manager (
++		planner_application_get_recent_model (priv->application));
++
++	GtkRecentFilter *filter;
++	filter = gtk_recent_filter_new ();
++	gtk_recent_filter_add_mime_type (filter, "application/x-planner");
++	gtk_recent_filter_add_mime_type (filter, "application/x-mrproject");
++	gtk_recent_filter_add_group (filter, "planner");
++	gtk_recent_chooser_set_filter (GTK_RECENT_CHOOSER (priv->recent_view), filter);
++
++	g_signal_connect (priv->recent_view,
++			  "item_activated",
++			  G_CALLBACK (recent_chooser_item_activated),
++			  window);
++
++	gtk_recent_chooser_set_sort_type (GTK_RECENT_CHOOSER (priv->recent_view), GTK_RECENT_SORT_MRU);
++	gtk_recent_chooser_set_local_only (GTK_RECENT_CHOOSER (priv->recent_view), TRUE);
++	gtk_recent_chooser_set_limit (GTK_RECENT_CHOOSER (priv->recent_view), 5);
++	gtk_recent_chooser_menu_set_show_numbers (GTK_RECENT_CHOOSER_MENU (priv->recent_view), TRUE);
++
++	GtkWidget *open_recent;
++	open_recent = gtk_ui_manager_get_widget (priv->ui_manager, "/MenuBar/File/FileOpenRecent");
++	gtk_menu_item_set_submenu (GTK_MENU_ITEM (open_recent), priv->recent_view);
+ 
+ 	hbox = gtk_hbox_new (FALSE, 0);
+ 
+@@ -1515,7 +1533,6 @@
+ 	gint              response;
+ 	gchar            *filename = NULL;
+ 	gchar            *last_dir;
+-	EggRecentItem    *item;
+ 
+ 	priv = window->priv;
+ 
+@@ -1583,10 +1600,7 @@
+ 
+ 		if (success) {
+ 			/* Add the file to the recent list */
+-			item = egg_recent_item_new_from_uri (mrp_project_get_uri (priv->project));
+-			egg_recent_item_set_mime_type (item, "application/x-planner");
+-			egg_recent_model_add_full (planner_application_get_recent_model (priv->application), item);
+-			egg_recent_item_unref (item);
++			window_recent_add_item (window, mrp_project_get_uri (priv->project));
+ 		} else {
+ 			GtkWidget *dialog;
+ 			
+@@ -1686,7 +1700,6 @@
+ 	PlannerWindowPriv *priv;
+ 	GError           *error = NULL;
+ 	GtkWidget        *dialog;
+-	EggRecentItem    *item;
+ 	
+ 	g_return_val_if_fail (PLANNER_IS_WINDOW (window), FALSE);
+ 	g_return_val_if_fail (uri != NULL, FALSE);
+@@ -1710,11 +1723,7 @@
+ 
+ 	if (!internal) {
+ 		/* Add the file to the recent list */
+-		item = egg_recent_item_new_from_uri (uri);
+-		egg_recent_item_set_mime_type (item, "application/x-planner");
+-		egg_recent_model_add_full (planner_application_get_recent_model (priv->application), item);
+-		egg_recent_item_unref (item);
+-		
++		window_recent_add_item (window, uri);
+ 		window_update_title (window);
+ 	}
+ 	
+@@ -1943,23 +1952,42 @@
+ 	}
+ }
+ 
+-static gchar *
+-window_recent_tooltip_func (EggRecentItem *item,
+-			    gpointer user_data)
++static void
++window_recent_add_item (PlannerWindow *window, const gchar *uri)
+ {
+-	gchar *uri;
+-	gchar *escaped;
+-	gchar *tooltip;
++	gchar *file_uri;
++	GtkRecentData *recent_data;
++	static gchar *groups[2] = {
++		"planner",
++		NULL
++	};
+ 
+-	uri = egg_recent_item_get_uri_for_display (item);
++	g_return_if_fail (PLANNER_IS_WINDOW (window));
++	if (uri == NULL)
++		return;
+ 
+-	escaped = egg_recent_util_escape_underlines (uri);
+-	tooltip = g_strdup_printf (_("Open '%s'"), escaped);
++	file_uri = g_filename_to_uri (uri, NULL, NULL);
++	if (file_uri == NULL)
++		return;
+ 
+-	g_free (uri);
+-	g_free (escaped);
++	recent_data = g_slice_new (GtkRecentData);
++	recent_data->display_name = g_filename_display_basename (uri);
++	recent_data->description = NULL;
++	recent_data->mime_type = "application/x-planner";
++	recent_data->app_name = (gchar *) g_get_application_name ();
++	recent_data->app_exec = g_strjoin (" ", g_get_prgname (), "%u", NULL);
++	recent_data->groups = groups;
++	recent_data->is_private = FALSE;
++
++	gtk_recent_manager_add_full (planner_application_get_recent_model (window->priv->application),
++				     file_uri,
++				     recent_data);
++
++	g_free (recent_data->display_name);
++	g_free (recent_data->app_exec);
++	g_free (file_uri);
+ 
+-	return tooltip;
++	g_slice_free (GtkRecentData, recent_data);
+ }
+ 
+ PlannerCmdManager *
+diff --git a/tests/Makefile.am b/tests/Makefile.am
+index 81d5522..0ca64fd 100644
+--- a/tests/Makefile.am
++++ b/tests/Makefile.am
+@@ -10,7 +10,6 @@ INCLUDES = \
+ LDADD =	\
+ 	$(top_builddir)/src/libplannerapp.la \
+ 	$(top_builddir)/libplanner/libplanner-1.la \
+-	$(top_builddir)/libegg/recent-files/libeggrecent.la \
+ 	$(PLANNER_LIBS)
+ 
+ check_LTLIBRARIES = libselfcheck.la
+-- 
+1.5.6.6
+

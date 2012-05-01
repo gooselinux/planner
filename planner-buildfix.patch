@@ -1,0 +1,25 @@
+--- planner-0.14.4/configure.in	2009-11-19 08:52:05.000000000 +0000
++++ planner-0.14.4/configure.in	2009-11-19 08:53:05.000000000 +0000
+@@ -289,6 +289,7 @@
+     		libedata-cal-$EDS_PACKAGE >= $EDS_REQUIRED
+     		libedataserver-$EDS_PACKAGE >= $EDS_REQUIRED
+     		evolution-plugin >= $EVOLUTION_REQUIRED
++    		libgnome-2.0
+     ])
+     extensiondir=`$PKG_CONFIG --variable=extensiondir evolution-data-server-$EDS_PACKAGE`
+     AC_SUBST(extensiondir)
+--- planner-0.14.4/data/ui/Makefile.am	2009-11-23 11:36:55.000000000 +0000
++++ planner-0.14.4/data/ui/Makefile.am	2009-11-23 11:37:07.000000000 +0000
+@@ -3,12 +3,10 @@
+ ui_DATA = \
+ 	gantt-view.ui		\
+ 	task-view.ui		\
+-	gantt-view.ui		\
+ 	html-plugin.ui		\
+ 	main-window.ui		\
+ 	resource-view.ui	\
+ 	sql-plugin.ui		\
+-	task-view.ui		\
+ 	xml-planner-plugin.ui	\
+ 	time-table-view.ui	\
+ 	eds-plugin.ui		\

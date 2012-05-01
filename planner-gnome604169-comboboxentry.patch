@@ -1,0 +1,205 @@
+diff -ru planner-0.14.4.orig/data/glade/add-predecessor.glade planner-0.14.4/data/glade/add-predecessor.glade
+--- planner-0.14.4.orig/data/glade/add-predecessor.glade	2009-12-09 12:48:03.000000000 +0000
++++ planner-0.14.4/data/glade/add-predecessor.glade	2009-12-09 12:48:16.000000000 +0000
+@@ -88,7 +88,6 @@
+ 	      <property name="yalign">0.5</property>
+ 	      <property name="xpad">0</property>
+ 	      <property name="ypad">0</property>
+-	      <property name="mnemonic_widget">combo-entry1</property>
+ 	      <property name="ellipsize">PANGO_ELLIPSIZE_NONE</property>
+ 	      <property name="width_chars">-1</property>
+ 	      <property name="single_line_mode">False</property>
+@@ -162,6 +161,7 @@
+ 	      <property name="yalign">0.5</property>
+ 	      <property name="xpad">0</property>
+ 	      <property name="ypad">0</property>
++	      <property name="mnemonic_widget">lag_entry</property>
+ 	      <property name="ellipsize">PANGO_ELLIPSIZE_NONE</property>
+ 	      <property name="width_chars">-1</property>
+ 	      <property name="single_line_mode">False</property>
+@@ -178,45 +178,6 @@
+ 	  </child>
+ 
+ 	  <child>
+-	    <widget class="GtkCombo" id="predecessor_combo">
+-	      <property name="visible">True</property>
+-	      <property name="value_in_list">False</property>
+-	      <property name="allow_empty">True</property>
+-	      <property name="case_sensitive">False</property>
+-	      <property name="enable_arrow_keys">True</property>
+-	      <property name="enable_arrows_always">False</property>
+-
+-	      <child internal-child="entry">
+-		<widget class="GtkEntry" id="combo-entry1">
+-		  <property name="visible">True</property>
+-		  <property name="can_focus">True</property>
+-		  <property name="editable">True</property>
+-		  <property name="visibility">True</property>
+-		  <property name="max_length">0</property>
+-		  <property name="text" translatable="yes"></property>
+-		  <property name="has_frame">True</property>
+-		  <property name="invisible_char">*</property>
+-		  <property name="activates_default">True</property>
+-		</widget>
+-	      </child>
+-
+-	      <child internal-child="list">
+-		<widget class="GtkList" id="combo-list1">
+-		  <property name="visible">True</property>
+-		  <property name="selection_mode">GTK_SELECTION_BROWSE</property>
+-		</widget>
+-	      </child>
+-	    </widget>
+-	    <packing>
+-	      <property name="left_attach">1</property>
+-	      <property name="right_attach">2</property>
+-	      <property name="top_attach">0</property>
+-	      <property name="bottom_attach">1</property>
+-	      <property name="y_options"></property>
+-	    </packing>
+-	  </child>
+-
+-	  <child>
+ 	    <widget class="GtkEntry" id="lag_entry">
+ 	      <property name="visible">True</property>
+ 	      <property name="can_focus">True</property>
+@@ -236,6 +197,23 @@
+ 	      <property name="y_options"></property>
+ 	    </packing>
+ 	  </child>
++
++	  <child>
++	    <widget class="GtkComboBoxEntry" id="predecessor_combo">
++	      <property name="visible">True</property>
++	      <property name="add_tearoffs">False</property>
++	      <property name="has_frame">True</property>
++	      <property name="focus_on_click">True</property>
++	    </widget>
++	    <packing>
++	      <property name="left_attach">1</property>
++	      <property name="right_attach">2</property>
++	      <property name="top_attach">0</property>
++	      <property name="bottom_attach">1</property>
++	      <property name="x_options">fill</property>
++	      <property name="y_options">fill</property>
++	    </packing>
++	  </child>
+ 	</widget>
+ 	<packing>
+ 	  <property name="padding">0</property>
+diff -ru planner-0.14.4.orig/src/planner-task-dialog.c planner-0.14.4/src/planner-task-dialog.c
+--- planner-0.14.4.orig/src/planner-task-dialog.c	2009-12-09 12:48:03.000000000 +0000
++++ planner-0.14.4/src/planner-task-dialog.c	2009-12-09 12:50:21.000000000 +0000
+@@ -350,56 +350,41 @@
+ #endif
+ 
+ static void
+-task_dialog_task_combo_select_child_cb (GtkList   *list,
+-					GtkWidget *item,
+-					GtkCombo  *combo)
+-{
+-	MrpTask *task;
+-
+-	task = g_object_get_data (G_OBJECT (item), "task");
+-	g_object_set_data (G_OBJECT (combo), "selected_task", task);
+-}
+-
+-static void
+-task_dialog_setup_task_combo (GtkCombo *combo,
++task_dialog_setup_task_combo (GtkComboBoxEntry *combo,
+ 			      GList    *tasks)
+ {
+-	GList       *strings;
+-	GList       *children;
+-	GList       *l;
+-	const gchar *name;
++	GtkListStore *store;
++	GtkTreeIter iter;
++	GtkCellRenderer *renderer;
++	GList        *l;
++	const gchar  *name;
+ 	
+ 	if (tasks == NULL) {
+ 		return;
+ 	}
+ 	
+-	strings = NULL;
++	store = gtk_list_store_new (2, G_TYPE_STRING, G_TYPE_POINTER);
+ 	for (l = tasks; l; l = l->next) {
+ 		name = mrp_task_get_name (l->data);
+ 		if (name == NULL || name[0] == 0) {
+-			strings = g_list_prepend (strings,
+-						  _("(No name)"));
++			gtk_list_store_set (store, &iter,
++			                    0, _("(No name)"),
++			                    1, l->data,
++			                    -1);
+ 		} else {
+-			strings = g_list_prepend (strings, (gchar*) name);
++			gtk_list_store_set (store, &iter,
++			                    0, name,
++			                    1, l->data,
++			                    -1);
+ 		}
+ 	}
+ 
+-	strings = g_list_reverse (strings);
+-	gtk_combo_set_popdown_strings (combo, strings);
+-	g_list_free (strings);
+-	
+-	g_object_set_data (G_OBJECT (combo), "selected_task", tasks->data);
+-	
+-	children = GTK_LIST (combo->list)->children;
+-	for (l = children; l; l = l->next) {
+-		g_object_set_data (G_OBJECT (l->data), "task", tasks->data);
+-		tasks = tasks->next;
+-	}
+-	
+-	g_signal_connect (combo->list,
+-			  "select-child",
+-			  G_CALLBACK (task_dialog_task_combo_select_child_cb),
+-			  combo);
++	gtk_combo_box_set_model (GTK_COMBO_BOX (combo), 
++	                         GTK_TREE_MODEL (store));
++
++	gtk_combo_box_entry_set_text_column (combo, 0);
++
++	gtk_combo_box_set_active (GTK_COMBO_BOX (combo), 0);
+ }
+ 
+ static gboolean
+@@ -1906,7 +1891,7 @@
+ 	
+ 	tasks = mrp_project_get_all_tasks (project);
+ 	tasks = g_list_remove (tasks, task);
+-	task_dialog_setup_task_combo (GTK_COMBO (w), tasks);
++	task_dialog_setup_task_combo (GTK_COMBO_BOX_ENTRY (w), tasks);
+ 	
+ 	w = glade_xml_get_widget (glade, "type_optionmenu");
+ 	g_object_set_data (G_OBJECT (dialog), "type_optionmenu", w);
+@@ -1947,10 +1932,11 @@
+ 	GtkWidget     *w;
+ 	GError        *error = NULL;
+ 	MrpTask       *task_main;
+-	MrpTask       *new_task_pred; 
++	MrpTask       *new_task_pred=NULL; 
+ 	MrpProject    *project; 
+ 	gint           lag;
+ 	gint           pred_type; 
++	GtkTreeIter    iter;
+ 	const gchar   *str;
+ 	
+ 	main_window = g_object_get_data (G_OBJECT (dialog), "main_window");
+@@ -1970,7 +1956,11 @@
+ 	/* Predecessor task. */
+ 	w = g_object_get_data (G_OBJECT (dialog), "predecessor_combo");
+ 
+-	new_task_pred = g_object_get_data (G_OBJECT (w), "selected_task");
++	if (gtk_combo_box_get_active_iter (GTK_COMBO_BOX (w), &iter)) {
++		gtk_tree_model_get (gtk_combo_box_get_model (GTK_COMBO_BOX (w)),
++				    &iter, 1, &new_task_pred, -1);
++	}
++
+ 	if (new_task_pred == NULL) {
+ 		g_warning (_("Can't add new predecessor. No task selected!"));
+                 return;

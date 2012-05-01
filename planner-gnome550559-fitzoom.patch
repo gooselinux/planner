@@ -1,0 +1,20 @@
+--- planner-0.14.4/src/planner-gantt-chart.c	2009-11-17 10:29:26.000000000 +0000
++++ planner-0.14.4/src/planner-gantt-chart.c	2009-11-17 10:29:26.000000000 +0000
+@@ -1876,6 +1876,7 @@
+ 	gdouble                t;
+ 	gdouble                zoom;
+ 	gdouble                alloc;
++        mrptime                mt;
+ 
+ 	g_return_if_fail (PLANNER_IS_GANTT_CHART (chart));
+ 
+@@ -1889,7 +1890,9 @@
+ 	alloc = GTK_WIDGET (chart)->allocation.width - PADDING * 2;
+ 
+ 	zoom = planner_scale_clamp_zoom (ZOOM (alloc / t));
++        mt = gantt_chart_get_center (chart);
+ 	gantt_chart_set_zoom (chart, zoom);
++        gantt_chart_set_center (chart, mt);
+ }
+ 
+ gdouble

@@ -1,0 +1,292 @@
+diff -ru planner-0.14.4.orig/data/glade/task-date-widget.glade planner-0.14.4/data/glade/task-date-widget.glade
+--- planner-0.14.4.orig/data/glade/task-date-widget.glade	2009-12-03 10:50:00.000000000 +0000
++++ planner-0.14.4/data/glade/task-date-widget.glade	2009-12-03 11:07:46.000000000 +0000
+@@ -25,10 +27,12 @@
+       <property name="spacing">6</property>
+ 
+       <child>
+-	<widget class="GtkCalendar" id="schedule_calendar">
++	<widget class="Custom" id="schedule_calendar">
+ 	  <property name="visible">True</property>
+-	  <property name="can_focus">True</property>
+-	  <property name="display_options">GTK_CALENDAR_SHOW_HEADING|GTK_CALENDAR_SHOW_DAY_NAMES|GTK_CALENDAR_SHOW_WEEK_NUMBERS</property>
++	  <property name="creation_function">create_schedule_calendar</property>
++	  <property name="int1">0</property>
++	  <property name="int2">0</property>
++	  <property name="last_modification_time">Thu, 03 Dec 2009 11:07:42 GMT</property>
+ 	</widget>
+ 	<packing>
+ 	  <property name="padding">0</property>
+diff -ru planner-0.14.4.orig/src/planner-calendar.c planner-0.14.4/src/planner-calendar.c
+--- planner-0.14.4.orig/src/planner-calendar.c	2009-12-03 10:50:00.000000000 +0000
++++ planner-0.14.4/src/planner-calendar.c	2009-12-03 12:00:44.000000000 +0000
+@@ -2782,5 +2782,38 @@
+ 	}
+ }	
+ 
++void
++planner_calendar_mark_days (PlannerCalendar         *calendar,
++		      MrpCalendar *mrp_calendar)
++{
++	guint        y, m, d;
++	MrpTime      *t;
++	mrptime      time;
++	MrpDay       *day;
+ 
++	planner_calendar_get_date (calendar, &y, &m, &d);
+ 
++	t = mrp_time2_new ();
++	mrp_time2_set_date (t, y, m+1, 1);
++	mrp_time2_set_time (t, 0, 0, 0);
++
++	for (d = 1; d <= 31; d++) {
++		time = mrp_time2_get_epoch (t);
++
++		day = mrp_calendar_get_day (mrp_calendar, time, TRUE);
++
++		if (day == mrp_day_get_nonwork ()) {
++			planner_calendar_mark_day (calendar,
++						   d,
++						   PLANNER_CALENDAR_MARK_SHADE);
++		}
++		else if (day == mrp_day_get_work ()) {
++			planner_calendar_mark_day (calendar,
++						   d,
++						   PLANNER_CALENDAR_MARK_NONE);
++		}
++
++		mrp_time2_add_days (t, 1);
++	}
++	mrp_time2_free (t);
++}
+diff -ru planner-0.14.4.orig/src/planner-calendar-dialog.c planner-0.14.4/src/planner-calendar-dialog.c
+--- planner-0.14.4.orig/src/planner-calendar-dialog.c	2009-12-03 10:50:00.000000000 +0000
++++ planner-0.14.4/src/planner-calendar-dialog.c	2009-12-03 11:31:26.000000000 +0000
+@@ -876,10 +876,6 @@
+ {
+ 	MrpCalendar *calendar;
+ 	PlannerCalendar  *calendar_widget;
+-	guint        y, m, d;
+-	MrpDay      *day;
+-	MrpTime      *t;
+-	mrptime      time;
+ 	
+ 	calendar = cal_dialog_get_selected_calendar (GTK_TREE_VIEW (data->tree_view));
+ 	if (!calendar) {
+@@ -895,31 +891,7 @@
+ 	gtk_widget_set_sensitive (data->default_week_button, TRUE);
+ 	gtk_widget_set_sensitive (data->working_time_button, TRUE);
+ 
+-	planner_calendar_get_date (calendar_widget, &y, &m, &d);
+-
+-	t = mrp_time2_new ();
+-	mrp_time2_set_date (t, y, m+1, 1);
+-	mrp_time2_set_time (t, 0, 0, 0);
+-
+-	for (d = 1; d <= 31; d++) {
+-		time = mrp_time2_get_epoch (t);
+-
+-		day = mrp_calendar_get_day (calendar, time, TRUE);
+-
+-		if (day == mrp_day_get_nonwork ()) {
+-			planner_calendar_mark_day (calendar_widget,
+-						   d,
+-						   PLANNER_CALENDAR_MARK_SHADE);
+-		}
+-		else if (day == mrp_day_get_work ()) {
+-			planner_calendar_mark_day (calendar_widget,
+-						   d,
+-						   PLANNER_CALENDAR_MARK_NONE);
+-		}
+-
+-		mrp_time2_add_days (t, 1);
+-	}
+-	mrp_time2_free (t);
++	planner_calendar_mark_days (calendar_widget, calendar);
+ }
+ 
+ static void
+diff -ru planner-0.14.4.orig/src/planner-calendar.h planner-0.14.4/src/planner-calendar.h
+--- planner-0.14.4.orig/src/planner-calendar.h	2009-12-03 10:50:00.000000000 +0000
++++ planner-0.14.4/src/planner-calendar.h	2009-12-03 12:00:03.000000000 +0000
+@@ -31,6 +31,7 @@
+ 
+ #include <gdk/gdk.h>
+ #include <gtk/gtkwidget.h>
++#include <libplanner/mrp-calendar.h>
+ 
+ #define PLANNER_TYPE_CALENDAR                  (planner_calendar_get_type ())
+ #define PLANNER_CALENDAR(obj)                  (G_TYPE_CHECK_INSTANCE_CAST ((obj), PLANNER_TYPE_CALENDAR, PlannerCalendar))
+@@ -143,5 +144,8 @@
+ 				 guint               day,
+ 				 PlannerCalendarMarkType  type);
+ 
++void       planner_calendar_mark_days (PlannerCalendar         *calendar,
++				 MrpCalendar *mrp_calendar);
++
+ 
+ #endif /* __PLANNER_CALENDAR_H__ */
+diff -ru planner-0.14.4.orig/src/planner-task-date-widget.c planner-0.14.4/src/planner-task-date-widget.c
+--- planner-0.14.4.orig/src/planner-task-date-widget.c	2009-12-03 10:50:00.000000000 +0000
++++ planner-0.14.4/src/planner-task-date-widget.c	2009-12-03 12:13:05.000000000 +0000
+@@ -27,6 +27,7 @@
+ #include "libplanner/mrp-task.h"
+ #include "libplanner/mrp-paths.h"
+ #include "planner-task-date-widget.h"
++#include "planner-calendar.h"
+ 
+ typedef struct {
+ 	GtkWidget   *calendar;
+@@ -35,6 +36,7 @@
+ 
+ 	mrptime            time;
+ 	MrpConstraintType  type;
++	MrpCalendar        *mrp_calendar;
+ } PlannerTaskDateWidgetPriv;
+ 
+ 
+@@ -130,6 +132,29 @@
+ 	g_signal_emit (widget, signals[DATE_SELECTED], 0);
+ }
+ 
++void
++planner_task_date_widget_set_mrp_calendar (PlannerTaskDateWidget *widget ,
++					   MrpCalendar *mrp_calendar)
++{
++	PlannerTaskDateWidgetPriv *priv;
++
++	priv = GET_PRIV (widget);
++
++	priv->mrp_calendar = mrp_calendar;
++}
++
++static void
++update_schedule_calendar_cb (PlannerCalendar *calendar_widget,
++                             	    PlannerTaskDateWidget *widget)
++{
++	PlannerTaskDateWidgetPriv *priv;
++
++	priv = GET_PRIV (widget);
++
++        if (priv->mrp_calendar)
++        	planner_calendar_mark_days (calendar_widget, priv->mrp_calendar);
++}
++
+ static gboolean
+ grab_on_window (GdkWindow *window,
+ 		guint32    time)
+@@ -160,6 +185,7 @@
+ 	
+ 	type = planner_task_date_widget_get_constraint_type (widget);
+ 	gtk_widget_set_sensitive (priv->calendar, type != MRP_CONSTRAINT_ASAP);
++	update_schedule_calendar_cb (PLANNER_CALENDAR (priv->calendar), widget);
+ 
+ 	/* A bit hackish. Grab focus on the popup widget again when the combo
+ 	 * has been used, since focus is transferred to the combo when it's
+@@ -170,6 +196,22 @@
+ 	}
+ }
+ 
++GtkWidget *
++create_schedule_calendar (gchar *name,
++		          gchar *string1, gchar *string2,
++		          gint int1, gint int2)
++{
++	GtkWidget *ret;
++
++	ret = planner_calendar_new ();
++
++	planner_calendar_display_options ( PLANNER_CALENDAR (ret),
++		PLANNER_CALENDAR_SHOW_HEADING | PLANNER_CALENDAR_SHOW_DAY_NAMES |
++		PLANNER_CALENDAR_SHOW_WEEK_NUMBERS | PLANNER_CALENDAR_WEEK_START_MONDAY );
++
++	return ret;
++}
++
+ static void
+ task_date_widget_setup (PlannerTaskDateWidget *widget)
+ {
+@@ -182,6 +224,8 @@
+ 
+ 	priv = GET_PRIV (widget);
+ 
++	priv->mrp_calendar = NULL;
++
+ 	vbox = gtk_vbox_new (FALSE, 0);
+ 	gtk_container_add (GTK_CONTAINER (widget), vbox);
+ 
+@@ -224,6 +268,10 @@
+ 			  G_CALLBACK (task_date_day_selected_double_click_cb),
+ 			  widget);
+ 
++	g_signal_connect (priv->calendar, "month_changed", 
++			  G_CALLBACK (update_schedule_calendar_cb),
++			  widget);
++
+         gtk_widget_show_all (vbox);
+ }
+ 
+@@ -239,8 +287,8 @@
+ 		return;
+ 	}
+ 
+-	gtk_calendar_select_month (GTK_CALENDAR (priv->calendar), month - 1, year);
+-	gtk_calendar_select_day (GTK_CALENDAR (priv->calendar), day);
++	planner_calendar_select_month (PLANNER_CALENDAR (priv->calendar), month - 1, year);
++	planner_calendar_select_day (PLANNER_CALENDAR (priv->calendar), day);
+ }
+ 
+ mrptime
+@@ -251,7 +299,7 @@
+ 
+ 	priv = GET_PRIV (widget);
+ 	
+-	gtk_calendar_get_date (GTK_CALENDAR (priv->calendar),
++	planner_calendar_get_date (PLANNER_CALENDAR (priv->calendar),
+ 			       &year, &month, &day);
+ 	
+ 	month++;
+diff -ru planner-0.14.4.orig/src/planner-task-date-widget.h planner-0.14.4/src/planner-task-date-widget.h
+--- planner-0.14.4.orig/src/planner-task-date-widget.h	2009-12-03 10:50:00.000000000 +0000
++++ planner-0.14.4/src/planner-task-date-widget.h	2009-12-03 12:00:18.000000000 +0000
+@@ -22,6 +22,7 @@
+ #define __PLANNER_TASK_DATE_WIDGET_H__
+ 
+ #include <gtk/gtktogglebutton.h>
++#include <libplanner/mrp-calendar.h>
+ 
+ #define PLANNER_TYPE_TASK_DATE_WIDGET            (planner_task_date_widget_get_type ())
+ #define PLANNER_TASK_DATE_WIDGET(obj)            (G_TYPE_CHECK_INSTANCE_CAST ((obj), PLANNER_TYPE_TASK_DATE_WIDGET, PlannerTaskDateWidget))
+@@ -50,5 +51,7 @@
+ void              planner_task_date_widget_set_constraint_type (PlannerTaskDateWidget *widget,
+ 								MrpConstraintType      type);
+ MrpConstraintType planner_task_date_widget_get_constraint_type (PlannerTaskDateWidget *widget);
++void              planner_task_date_widget_set_mrp_calendar    (PlannerTaskDateWidget *widget ,
++								MrpCalendar *calendar);
+ 
+ #endif /* __PLANNER_TASK_DATE_WIDGET_H__ */
+diff -ru planner-0.14.4.orig/src/planner-task-dialog.c planner-0.14.4/src/planner-task-dialog.c
+--- planner-0.14.4.orig/src/planner-task-dialog.c	2009-12-03 10:50:00.000000000 +0000
++++ planner-0.14.4/src/planner-task-dialog.c	2009-12-03 12:01:17.000000000 +0000
+@@ -2276,6 +2276,8 @@
+ {
+ 	GtkWidget     *widget;
+ 	MrpConstraint *constraint;
++	MrpProject    *project;
++	MrpCalendar   *calendar;
+ 
+ 	widget = planner_task_date_widget_new ();
+ 
+@@ -2284,6 +2286,12 @@
+ 	planner_task_date_widget_set_constraint_type (PLANNER_TASK_DATE_WIDGET (widget),
+ 						      constraint->type);
+ 
++	g_object_get (data->task, "project", &project, NULL);
++	calendar = mrp_project_get_calendar (project);
++
++	planner_task_date_widget_set_mrp_calendar (PLANNER_TASK_DATE_WIDGET (widget),
++					           calendar);
++
+ 	if (constraint->type != MRP_CONSTRAINT_ASAP) {
+ 		planner_task_date_widget_set_date (PLANNER_TASK_DATE_WIDGET (widget),
+ 						   constraint->time);
